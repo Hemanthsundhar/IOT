@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Energy Guardian</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --bg-gradient-light: linear-gradient(to right, #e0eafc, #cfdef3);
+      --bg-gradient-dark: linear-gradient(to right, #136a8a, #267871);
+      --text-light: #000000;
+      --text-dark: #ffffff;
+    }
+    body {
+      background: var(--bg-gradient-dark);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: var(--text-dark);
+      transition: all 0.3s ease;
+    }
+    .card {
+      border-radius: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      background-color: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .alert-box {
+      font-weight: bold;
+      font-size: 1.2rem;
+      color: #ffeb3b;
+    }
+    .datetime {
+      font-size: 1.1rem;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    h2, h4 {
+      color: inherit;
+      font-weight: 700;
+    }
+    .display-6 {
+      font-weight: 500;
+      font-size: 2rem;
+    }
+    #summaryBox {
+      font-size: 1rem;
+      margin-top: 10px;
+    }
+    .theme-toggle {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container py-5">
+  <button class="btn btn-light theme-toggle" onclick="toggleTheme()">Toggle Theme</button>
+  <h2 class="text-center mb-2">Smart Energy Guardian Dashboard</h2>
+  <div class="datetime" id="datetime">--</div>
+
+  <div class="row g-4">
+    <div class="col-md-4">
+      <div class="card p-4 text-center">
+        <h4>Current</h4>
+        <p id="currentVal" class="display-6">-- A</p>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card p-4 text-center">
+        <h4>Voltage</h4>
+        <p id="voltageVal" class="display-6">-- V</p>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card p-4 text-center">
+        <h4>Instant Power</h4>
+        <p id="powerVal" class="display-6">-- W</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mt-4">
+    <div class="col-md-12">
+      <div class="card p-4">
+        <h4>Energy Consumption Summary</h4>
+        <p>Used: <span id="usedPercent">--</span>% of your set limit</p>
+        <div id="alertBox" class="alert-box"></div>
+        <div id="summaryBox"></div>
+        <button class="btn btn-outline-light mt-3" onclick="downloadPDF()">Download Bill (PDF)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+  let darkMode = true;
+
+  function getLiveCurrent() { return 3.2; }
+  function getLiveVoltage() { return 230; }
+  function getUsedKWh() { return 85; }
+  function getLimitKWh() { return 100; }
+
+  const unitPrice = 8.05; // Rs per kWh (Chennai TANGEDCO rate) // Rs per kWh
+  const usageLog = [2.1, 3.0, 2.8];
+
+  function getTodayUsage() {
+    return usageLog[usageLog.length - 1];
+  }
+
+  function getWeekUsage() {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const start = Math.max(0, usageLog.length - dayOfWeek);
+    return usageLog.slice(start).reduce((a, b) => a + b, 0);
+  }
+
+  function getMonthUsage() {
+    return usageLog.reduce((a, b) => a + b, 0);
+  }
+
+  function updateDashboard() {
+    const current = getLiveCurrent();
+    const voltage = getLiveVoltage();
+    const power = (current * voltage).toFixed(2);
+    const used = getUsedKWh();
+    const limit = getLimitKWh();
+    const usedPercent = (used / limit) * 100;
+
+    const today = getTodayUsage();
+    const week = getWeekUsage();
+    const month = getMonthUsage();
+
+    const avgDay = (month / usageLog.length).toFixed(2);
+    const avgWeek = (week / 7).toFixed(2);
+    const avgMonth = month.toFixed(2);
+
+    document.getElementById("currentVal").innerText = `${current} A`;
+    document.getElementById("voltageVal").innerText = `${voltage} V`;
+    document.getElementById("powerVal").innerText = `${power} W`;
+    document.getElementById("usedPercent").innerText = usedPercent.toFixed(1);
+
+    document.getElementById("summaryBox").innerHTML = `
+      <p>🔹 Today: <b>${today} kWh</b> (Rs ${(today * unitPrice).toFixed(2)})</p>
+      <p>🔹 This Week: <b>${week} kWh</b> (Rs ${(week * unitPrice).toFixed(2)})</p>
+      <p>🔹 This Month: <b>${month} kWh</b> (Rs ${(month * unitPrice).toFixed(2)})</p>
+      <hr>
+      <p>📊 Average Daily: Rs ${(avgDay * unitPrice).toFixed(2)}</p>
+      <p>📊 Average Weekly: Rs ${(avgWeek * unitPrice).toFixed(2)}</p>
+      <p>📊 Monthly Total: Rs ${(avgMonth * unitPrice).toFixed(2)}</p>
+    `;
+
+    if (usedPercent >= 80) {
+      document.getElementById("alertBox").innerText = "⚠️ You have used over 80% of your electricity budget!";
+    } else {
+      document.getElementById("alertBox").innerText = "";
+    }
+  }
+
+  function updateDateTime() {
+    const now = new Date();
+    const formatted = now.toLocaleString();
+    document.getElementById("datetime").innerText = `Current Date & Time: ${formatted}`;
+  }
+
+  function toggleTheme() {
+    darkMode = !darkMode;
+    document.body.style.background = darkMode ? 'var(--bg-gradient-dark)' : 'var(--bg-gradient-light)';
+    document.body.style.color = darkMode ? 'var(--text-dark)' : 'var(--text-light)';
+  }
+
+  async function downloadPDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const today = getTodayUsage();
+    const week = getWeekUsage();
+    const month = getMonthUsage();
+    const totalAmount = (month * unitPrice).toFixed(2);
+
+    doc.setFontSize(16);
+    doc.text("Smart Energy Guardian - Bill Summary", 20, 20);
+    doc.setFontSize(12);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 30);
+    doc.text(`Current: ${getLiveCurrent()} A`, 20, 40);
+    doc.text(`Voltage: ${getLiveVoltage()} V`, 20, 50);
+    doc.text(`Instant Power: ${(getLiveCurrent() * getLiveVoltage()).toFixed(2)} W`, 20, 60);
+    doc.text(`Today's Usage: ${today} kWh (Rs ${(today * unitPrice).toFixed(2)})`, 20, 70);
+    doc.text(`Weekly Usage: ${week} kWh (Rs ${(week * unitPrice).toFixed(2)})`, 20, 80);
+    doc.text(`Monthly Usage: ${month} kWh (Rs ${(month * unitPrice).toFixed(2)})`, 20, 90);
+    doc.text(`Total Bill Amount: Rs ${totalAmount}`, 20, 100);
+    doc.save("Smart_Energy_Bill.pdf");
+  }
+
+  updateDashboard();
+  updateDateTime();
+  setInterval(updateDashboard, 5000);
+  setInterval(updateDateTime, 1000);
+</script>
+
+</body>
+</html>
